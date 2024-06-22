@@ -16,7 +16,9 @@ function Login() {
     tempPeer.on("open", () => {
       tempPeer.destroy();
       setError(null);
-      localStorage.setItem("username", username ?? localStorage.getItem("username"));
+      if (username !== "") {
+        localStorage.setItem("username", username);
+      }
       navigate("/lobby");
     });
 

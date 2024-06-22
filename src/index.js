@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import Login from './login';
@@ -7,6 +7,8 @@ import reportWebVitals from './reportWebVitals';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { ConnectionContext } from './ConnectionContext.js';
+import Game1 from './game1.js';
 
 const darkTheme = createTheme({
   palette: {
@@ -23,18 +25,30 @@ const darkTheme = createTheme({
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
+  <BaseComponent/>
+);
+
+function BaseComponent () {
+  const [connection, setConnection] = useState({});
+  const connectionObj = useMemo(() => {
+    return {connection: connection, setConnection: setConnection}
+}, [connection, setConnection]);
+
+  return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
+      <ConnectionContext.Provider value={connectionObj}>
       <Router>
         <Routes>
           <Route exact path="/" element={<Login/>} />
           <Route path="/lobby" element={<Lobby/>} />
+          <Route path="/game1" element={<Game1/>} />
         </Routes>
       </Router>
+      </ConnectionContext.Provider>
     </ThemeProvider>
-  </React.StrictMode>
-);
+  );
+}
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
