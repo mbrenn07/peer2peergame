@@ -26,7 +26,7 @@ function Lobby() {
 
     const logout = () => {
         localStorage.removeItem("username");
-        peer.destroy();
+        peer?.destroy();
         navigate("/");
     }
 
@@ -62,6 +62,10 @@ function Lobby() {
     }, [peer]);
 
     useEffect(() => {
+        if (!localStorage.getItem("username")) {
+            navigate("/");
+        }
+
         setUsername(localStorage.getItem("username"));
 
         return () => {
