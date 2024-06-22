@@ -1,9 +1,8 @@
 import { CardActionArea, CardContent, Box, Button, Card, Grid, Link, Stack, TextField, Typography } from "@mui/material";
 import './login.css';
 import { Peer } from "peerjs";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { useContext } from 'react';
 import { ConnectionContext } from './ConnectionContext.js';
 
 function Lobby() {
@@ -15,8 +14,14 @@ function Lobby() {
             name: "Game 1",
             description: "this is the description of the first game",
             url: "game1",
-
-        }
+            multiplayer: true,
+        },
+        {
+            name: "Level Editor",
+            description: "Create levels for other games",
+            url: "level-editor",
+            multiplayer: false,
+        },
     ];
 
     const [lobbyPartner, setLobbyPartner] = useState("");
@@ -114,7 +119,7 @@ function Lobby() {
                     </Stack>
                     <Box sx={{ width: "140%", height: 179 * 1.5, backgroundColor: "rgba(0, 0, 0, .7)", mb: 3, position: "relative", transform: "translateX(-13.5%)", padding: 2, pb: 0 }}>
                         <Grid sx={{ height: "100%", width: "100%" }} spacing={2} container>
-                            {games.map((game) => <GameCard key={game.name} name={game.name} description={game.description} url={game.url} activeConnection={activeConnection}/>)}
+                            {games.map((game) => <GameCard key={game.name} name={game.name} description={game.description} url={game.url} activeConnection={activeConnection} multiplayer={game.multiplayer}/>)}
                         </Grid>
                     </Box>
                 </Stack>
@@ -127,14 +132,14 @@ function GameCard(props) {
     const navigate = useNavigate();
 
     const goToGame = () => {
-        props.activeConnection.send({command: "playGame", url: "../" + props.url})
+        props.activeConnection?.send({command: "playGame", url: "../" + props.url})
         navigate("../" + props.url);
     }
 
     return (
         <Grid item xs={4} sx={{ height: "50%" }}>
             <Card sx={{ height: "100%", overflowY: "auto" }}>
-                <CardActionArea disabled={!props.activeConnection} onClick={goToGame} sx={{height: "100%", opacity: props.activeConnection ? null : .3}}>
+                <CardActionArea disabled={!(!props.multiplayer || props.activeConnection)} onClick={goToGame} sx={{height: "100%", opacity: (!props.multiplayer || props.activeConnection) ? null : .3}}>
                     <CardContent sx={{padding: 1.5}}>
                         <Typography gutterBottom variant="h5">
                             {props.name}

@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import Login from './login';
-import Lobby from './lobby'
+import Lobby from './lobby';
+import LevelEditor from './levelEditor'
 import reportWebVitals from './reportWebVitals';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -43,6 +44,7 @@ function BaseComponent () {
           <Route exact path="/" element={<Login/>} />
           <Route path="/lobby" element={<Lobby/>} />
           <Route path="/game1" element={<Game1/>} />
+          <Route path="/level-editor" element={<LevelEditor/>} />
         </Routes>
       </Router>
       </ConnectionContext.Provider>
