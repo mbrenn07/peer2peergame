@@ -32,7 +32,7 @@ function Lobby() {
     useEffect(() => {
         peer?.destroy();
         if (username) {
-            setPeer(new Peer(username));
+            setPeer(new Peer(username, {debug: 3}));
         }
     }, [username]);
 
