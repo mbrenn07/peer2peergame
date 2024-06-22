@@ -12,18 +12,21 @@ function Lobby() {
     const [username, setUsername] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
     const [activeConnection, setActiveConnection] = useState(null);
+    const [error, setError] = useState(null);
 
     const createLobby = () => {
-        const connection = peer.connect(lobbyPartner + "-suffixToEnsureUniqueness");
+        const connection = peer.connect(lobbyPartner);
         setActiveConnection(connection);
     }
 
     const onConnected = () => {
+        setError(null);
         setIsConnected(true);
     }
 
     const logout = () => {
         localStorage.removeItem("username");
+        peer.destroy();
         navigate("/");
     }
 
@@ -39,7 +42,7 @@ function Lobby() {
     useEffect(() => {
         peer?.destroy();
         if (username) {
-            setPeer(new Peer(username + "-suffixToEnsureUniqueness"));
+            setPeer(new Peer(username));
         }
     }, [username]);
 
@@ -52,6 +55,9 @@ function Lobby() {
                 setLobbyPartner(conn.peer);
                 onConnected();
             });
+        });
+        peer?.on("error", () => {
+            setError("That user is not currently online");
         });
     }, [peer]);
 
@@ -78,6 +84,7 @@ function Lobby() {
                             setLobbyPartner(event.target.value);
                         }} variant="standard" inputProps={{ style: { fontSize: 40, textAlign: "center" }, id: "usernameText" }}
                         InputLabelProps={{ style: { fontSize: 40 } }} />
+                    {error && <Typography sx={{ textAlign: "center", color: "red", margin: 0 }}>{error}</Typography>}
                     { isConnected ? (
                         <Typography sx={{ fontSize: 30, textAlign: "center", color: "green", height: 64.5, lineHeight: 2}}> Connected! </Typography>
                     )
