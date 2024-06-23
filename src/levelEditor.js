@@ -54,7 +54,7 @@ function Game1() {
         setLevelHeight(window.innerHeight);
         setLevelWidth(window.innerWidth);
         setGridLineSpacing(50);
-        setGridSnapping(false);
+        setGridSnapping(true);
         setLevelShapes([]);
         setCurrentColor("#000000");
     }
