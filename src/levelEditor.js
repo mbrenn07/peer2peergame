@@ -1,7 +1,8 @@
 import { Box, Stack, Divider, IconButton, TextField, Typography, Modal } from "@mui/material";
-import { Delete, BorderStyle, Download, Upload, Crop32, Pentagon } from '@mui/icons-material';
+import { Delete, BorderStyle, Download, Upload, Crop32, Pentagon, AutoFixNormal } from '@mui/icons-material';
 import './login.css';
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import lodash from "lodash";
 
 function Game1() {
     const [openDimensionModal, setOpenDimensionModal] = useState(false);
@@ -15,6 +16,7 @@ function Game1() {
     const [drawingPoints, setDrawingPoints] = useState([]);
     const [cursorLocation, setCursorLocation] = useState();
     const [levelShapes, setLevelShapes] = useState([]);
+    const [oldLevel, setOldLevel] = useState();
 
     useEffect(() => {
         const level = JSON.parse(localStorage.getItem("currentLevel"));
@@ -26,6 +28,7 @@ function Game1() {
     }, []);
 
     const loadLevel = (level) => {
+        setOldLevel(currentLevel);
         setLevelHeight(level.height);
         setLevelWidth(level.width);
         setLevelShapes(level.shapes);
@@ -33,10 +36,30 @@ function Game1() {
     }
 
     const createNewLevel = () => {
+        setOldLevel(currentLevel);
         setLevelHeight(window.innerHeight);
         setLevelWidth(window.innerWidth);
         setLevelShapes([]);
     }
+
+    function inside(point, vs) {
+        // ray-casting algorithm based on
+        // https://wrf.ecse.rpi.edu/Research/Short_Notes/pnpoly.html
+        
+        const x = point[0], y = point[1];
+        
+        let inside = false;
+        for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+            const xi = vs[i][0], yi = vs[i][1];
+            const xj = vs[j][0], yj = vs[j][1];
+            
+            const intersect = ((yi > y) != (yj > y))
+                && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        
+        return inside;
+    };
 
     function download(filename, text) {
         const element = document.createElement('a');
@@ -51,17 +74,21 @@ function Game1() {
         document.body.removeChild(element);
     }
 
+    const handleMouseMove = useCallback(lodash.throttle((e) => {
+        setCursorLocation({ x: e.pageX + scrollPosition.x, y: e.pageY + scrollPosition.y });
+    }, 16), []);
+
     const addShape = (drawingPoints) => {
         levelShapes.push(drawingPoints);
         setLevelShapes([...levelShapes]);
     }
 
     const createDrawingPreview = () => {
-        if (drawingPoints.length > 0 && cursorLocation) {
+        if (drawingPoints.length > 0) {
             let points = [];
             if (drawingMode === "poly") {
                 points = [...drawingPoints];
-            } else if (drawingMode === "rect") {
+            } else if (drawingMode === "rect" && cursorLocation) {
                 if (drawingPoints.length === 4) {
                     return;
                 }
@@ -115,6 +142,10 @@ function Game1() {
     }
 
     useEffect(() => {
+        localStorage.setItem("oldLevel", JSON.stringify(oldLevel));
+    }, [oldLevel])
+
+    useEffect(() => {
         const level = {};
         level.width = levelWidth;
         level.height = levelHeight;
@@ -133,7 +164,7 @@ function Game1() {
             >
                 <Box onMouseMove={(e) => {
                     if (isDrawing) {
-                        setCursorLocation({ x: e.pageX + scrollPosition.x, y: e.pageY + scrollPosition.y });
+                        handleMouseMove(e);
                     }
                 }}
 
@@ -173,6 +204,18 @@ function Game1() {
                                 setIsDrawing(false);
                                 addShape(drawingPoints);
                             }
+                        } else if (drawingMode === "erase") {
+                            const newLevelShapes = [...levelShapes];
+                            levelShapes.forEach((shape, index) => {
+                                const shapePointsArray = [];
+                                shape.forEach((point) => {
+                                    shapePointsArray.push([point.x, point.y]);
+                                });
+                                if (inside([e.pageX + scrollPosition.x, e.pageY + scrollPosition.y], shapePointsArray)) {
+                                    newLevelShapes.splice(index, 1);                                
+                                }
+                            });
+                            setLevelShapes(newLevelShapes);
                         }
                     }}
                     onContextMenu={(e) => {
@@ -190,7 +233,10 @@ function Game1() {
                         <IconButton onClick={() => setOpenDimensionModal(true)}>
                             <BorderStyle />
                         </IconButton>
-                        <IconButton onClick={() => download("currentLevel.txt", JSON.stringify(currentLevel))}>
+                        <IconButton onContextMenu={(e) => {
+                            download("oldLevel.txt", JSON.stringify(oldLevel));
+                            e.preventDefault();
+                        }} onClick={() => download("currentLevel.txt", JSON.stringify(currentLevel))}>
                             <Download />
                         </IconButton>
                         <IconButton onClick={() => setOpenUploadModal(true)}>
@@ -220,6 +266,19 @@ function Game1() {
                                 :
                                 (
                                     <Pentagon />
+                                )}
+                        </IconButton>
+                        <IconButton onClick={() => {
+                            setIsDrawing(false);
+                            setDrawingMode(drawingMode === "erase" ? undefined : "erase");
+                        }}>
+                            {drawingMode === "erase" ?
+                                (
+                                    <AutoFixNormal color="primary" />
+                                )
+                                :
+                                (
+                                    <AutoFixNormal />
                                 )}
                         </IconButton>
                         <IconButton onClick={() => createNewLevel()}>
