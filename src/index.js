@@ -9,7 +9,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import { ConnectionContext } from './ConnectionContext.js';
-import Game1 from './game1.js';
+import TheKingsSport from './theKingsSport.js';
 
 const darkTheme = createTheme({
   palette: {
@@ -43,7 +43,7 @@ function BaseComponent () {
         <Routes>
           <Route exact path="/" element={<Login/>} />
           <Route path="/lobby" element={<Lobby/>} />
-          <Route path="/game1" element={<Game1/>} />
+          <Route path="/the-kings-sport" element={<TheKingsSport/>} />
           <Route path="/level-editor" element={<LevelEditor/>} />
         </Routes>
       </Router>

@@ -3,6 +3,7 @@ import { GridOn, Delete, BorderStyle, Download, Upload, Crop32, Pentagon, AutoFi
 import './login.css';
 import { useEffect, useState, useCallback } from "react";
 import lodash from "lodash";
+import LevelRenderer from "./levelRenderer";
 
 function Game1() {
     const [openDimensionModal, setOpenDimensionModal] = useState(false);
@@ -51,8 +52,8 @@ function Game1() {
 
     const createNewLevel = () => {
         setOldLevel(currentLevel);
-        setLevelHeight(window.innerHeight);
-        setLevelWidth(window.innerWidth);
+        setLevelHeight(roundToGrid(window.innerHeight));
+        setLevelWidth(roundToGrid(window.innerWidth));
         setGridLineSpacing(50);
         setGridSnapping(true);
         setLevelShapes([]);
@@ -104,8 +105,16 @@ function Game1() {
     }, 16), []);
 
     const addShape = (drawingPoints) => {
-        levelShapes.push({ points: drawingPoints, color: currentColor });
-        setLevelShapes([...levelShapes]);
+        let different = false;
+        drawingPoints.forEach((drawingPoint) => {
+            if (drawingPoint.x != drawingPoints[0].x || drawingPoint.y != drawingPoints[0].y) {
+                different = true;
+            }
+        });
+        if (different) {
+            levelShapes.push({ points: drawingPoints, color: currentColor });
+            setLevelShapes([...levelShapes]);
+        }
     }
 
     const createGridLines = () => {
@@ -180,20 +189,6 @@ function Game1() {
             setCursorLocation(undefined);
         }
     }, [isDrawing]);
-
-    const drawLevelShapes = () => {
-        return levelShapes.map((levelShape) => {
-            let points = "";
-            levelShape.points.forEach((point) => {
-                points = points + point.x + "," + point.y + " ";
-            });
-            return (
-                <svg width={levelWidth} height={levelHeight} style={{ position: "relative" }}>
-                    <polygon points={points} fill={levelShape.color} />
-                </svg>
-            );
-        });
-    }
 
     useEffect(() => {
         localStorage.setItem("oldLevel", JSON.stringify(oldLevel));
@@ -318,11 +313,10 @@ function Game1() {
                         e.preventDefault();
                     }}
                     sx={{ overflow: "clip", width: parseInt(levelWidth), height: parseInt(levelHeight), border: "1px dashed black" }}>
-                    <svg width={levelWidth} height={levelHeight}>
+                    <LevelRenderer level={currentLevel}>
                         {createGridLines()}
-                        {drawLevelShapes()}
                         {createDrawingPreview()}
-                    </svg>
+                    </LevelRenderer>
                 </Box>
                 <Box sx={{ height: 40, width: 500, position: "absolute", top: "calc(100% - 25px)", left: "50%", transform: "translate(-50%, -100%)", backgroundColor: "rgba(0, 0, 0, .7)" }}>
                     <Stack direction="row" divider={<Divider orientation="vertical" flexItem />} >
@@ -330,9 +324,9 @@ function Game1() {
                             <BorderStyle />
                         </IconButton>
                         <IconButton onContextMenu={(e) => {
-                            download("oldLevel.txt", JSON.stringify(oldLevel));
+                            download("oldLevel.json", JSON.stringify(oldLevel));
                             e.preventDefault();
-                        }} onClick={() => download("currentLevel.txt", JSON.stringify(currentLevel))}>
+                        }} onClick={() => download("currentLevel.json", JSON.stringify(currentLevel))}>
                             <Download />
                         </IconButton>
                         <IconButton onClick={() => setOpenUploadModal(true)}>
@@ -480,7 +474,7 @@ function Game1() {
                                 }
                             });
                             reader.readAsText(file);
-                        }} type="file" accept=".txt" />
+                        }} type="file" accept=".json" />
                     </Stack>
                 </Box>
             </Modal>

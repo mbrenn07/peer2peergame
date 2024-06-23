@@ -11,9 +11,9 @@ function Lobby() {
 
     const games = [
         {
-            name: "Game 1",
-            description: "this is the description of the first game",
-            url: "game1",
+            name: "The King's Sport",
+            description: "A multiplayer archery arena",
+            url: "the-kings-sport",
             multiplayer: true,
         },
         {
