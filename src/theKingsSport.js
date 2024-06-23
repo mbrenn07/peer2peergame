@@ -1,4 +1,4 @@
-import { Box, Button } from "@mui/material";
+import { Box } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import './login.css';
 import { useEffect, useState, useContext } from "react";
@@ -11,10 +11,14 @@ function TheKingsSport() {
   const connectionContext = useContext(ConnectionContext);
 
   const handlePeerData = (data) => {
-    console.log(data);
+    if (data.command === "updateState") {
+      if (data.entity === "player") {
+        setOtherPlayerState(data.data);
+      }
+    }
   }
 
-  const [currentLevel, setCurrentLevel] = useState(testLevel);
+  const [currentLevel, setCurrentLevel] = useState(testLevel); //NOSONAR
   const [keysPressed, setKeysPressed] = useState(
     {
       up: false,
@@ -24,6 +28,28 @@ function TheKingsSport() {
     }
   );
 
+  const [otherPlayerState, setOtherPlayerState] = useState({
+    x: currentLevel.grid.spacing * 2,
+    y: currentLevel.grid.spacing * 14,
+    xAcceleration: 0,
+    yAcceleration: 0,
+    xAccelerationIncrement: 2,
+    yAccelerationIncrement: 2,
+    xSpeed: 0,
+    ySpeed: 0,
+    xMaxSpeed: 10,
+    yMaxSpeed: 10,
+    xDrag: 1,
+    yGravity: .5,
+    width: currentLevel.grid.spacing / 2,
+    height: currentLevel.grid.spacing,
+    color: "#9932CC",
+    terrainCollidingLeft: false,
+    terrainCollidingRight: false,
+    terrainCollidingTop: false,
+    terrainCollidingBottom: false,
+    lastGrounded: 0,
+  });
   const [playerState, setPlayerState] = useState({
     x: currentLevel.grid.spacing * 2,
     y: currentLevel.grid.spacing * 14,
@@ -74,7 +100,6 @@ function TheKingsSport() {
           const topDiff = Math.abs(playerState.y - (y + height));
           const bottomDiff = Math.abs(playerState.y + playerState.height - y);
           const closestDiff = Math.min(leftDiff, rightDiff, topDiff, bottomDiff);
-          console.log(shape)
 
           if (leftDiff === closestDiff) {
             playerState.terrainCollidingLeft = x + width;
@@ -170,19 +195,24 @@ function TheKingsSport() {
 
     playerState.ySpeed = playerState.ySpeed + playerState.yGravity;
 
+    connectionContext.connection.send({
+      command: "updateState",
+      entity: "player",
+      data: playerState
+    })
     setPlayerState({ ...playerState });
   }
 
 
   useEffect(() => {
-    // if (connectionContext.connection === null || Object.keys(connectionContext.connection).length === 0) {
-    //     navigate("../lobby");
-    //     return;
-    // }
+    if (connectionContext.connection === null || Object.keys(connectionContext.connection).length === 0) {
+        navigate("../lobby");
+        return;
+    }
 
-    // connectionContext.connection.on("data", (data) => {
-    //     handlePeerData(data);
-    // });
+    connectionContext.connection.on("data", (data) => {
+        handlePeerData(data);
+    });
 
     document.addEventListener('keydown', (event) => {
       if (playerState === undefined || playerState === null) {
@@ -253,8 +283,8 @@ function TheKingsSport() {
     <Box sx={{ backgroundColor: "cornsilk", overflow: "hidden" }}>
       <LevelRenderer level={currentLevel}>
         <rect fill={playerState.color} x={playerState.x} y={playerState.y} width={playerState.width} height={playerState.height} />
+        <rect fill={otherPlayerState.color} x={otherPlayerState.x} y={otherPlayerState.y} width={otherPlayerState.width} height={otherPlayerState.height} />
       </LevelRenderer>
-      {/* <Button onClick={() => connectionContext.connection.send("hello")}> hello </Button> */}
     </Box>
   );
 }
