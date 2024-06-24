@@ -9,8 +9,8 @@ import lodash from "lodash";
 
 function TheKingsSport() {
   const navigate = useNavigate();
+  const otherPlayerArrowFiringQueueRef = useRef(null);
   const dragTrackerRef = useRef(null);
-  const otherPlayerEntitiesRef = useRef(null);
   const connectionContext = useContext(ConnectionContext);
 
   const handlePeerData = (data) => {
@@ -18,16 +18,20 @@ function TheKingsSport() {
       if (dataItem.command === "updateState") {
         if (dataItem.entity === "player") {
           setOtherPlayerState(dataItem.data);
-        } else if (dataItem.entity === "entities") {
-          setOtherPlayerEntities(dataItem.data);
         }
+      } else if (dataItem.command === "fireArrow") {
+        console.log(dataItem)
+        setOtherPlayerArrowFiringQueue((prevQueue) => {
+          prevQueue.push({player: dataItem.data.player, dragTracker: dataItem.data.dragTracker});
+          return prevQueue;
+        });
       }
     });
   }
 
   const [dragTracker, setDragTracker] = useState({});
+  const [otherPlayerArrowFiringQueue, setOtherPlayerArrowFiringQueue] = useState([])
   const [gameEntities, setGameEntities] = useState([]);
-  const [otherPlayerEntities, setOtherPlayerEntities] = useState([]);
   const [currentLevel, setCurrentLevel] = useState(testLevel); //NOSONAR
   const [keysPressed, setKeysPressed] = useState(
     {
@@ -90,8 +94,8 @@ function TheKingsSport() {
   }, [dragTracker]);
 
   useEffect(() => {
-    otherPlayerEntitiesRef.current = otherPlayerEntities;
-  }, [otherPlayerEntities]);
+    otherPlayerArrowFiringQueueRef.current = otherPlayerArrowFiringQueue;
+  }, [otherPlayerArrowFiringQueue]);
 
   const determineCollision = (points, physicsObject, newX, newY) => {
     const x = Math.min(points[2].x, points[0].x);
@@ -139,18 +143,6 @@ function TheKingsSport() {
     });
 
     gameEntities.forEach((entity) => {
-      if (entity.isCollider && !physicsObject.isCollider) {
-        const points = [
-          { x: entity.x, y: entity.y },
-          { x: entity.x, y: entity.y + entity.height },
-          { x: entity.x + entity.width, y: entity.y + entity.height },
-          { x: entity.x + entity.width, y: entity.y },
-        ];
-        determineCollision(points, physicsObject, newX, newY);
-      }
-    });
-
-    otherPlayerEntitiesRef.current.forEach((entity) => {
       if (entity.isCollider && !physicsObject.isCollider) {
         const points = [
           { x: entity.x, y: entity.y },
@@ -243,6 +235,54 @@ function TheKingsSport() {
     physicsObject.ySpeed = physicsObject.ySpeed + physicsObject.yGravity;
   }
 
+  const fireArrow = (player, dragTracker) => {
+    if (dragTracker.fired && dragTracker.cursorPos) {
+      const arrowSpeed = 20;
+
+      const ratio = Math.abs(Math.atan((dragTracker.startCoord.y - dragTracker.cursorPos.y) / (dragTracker.startCoord.x - dragTracker.cursorPos.x))) / (Math.PI / 2);
+
+      //use angle to find ratio, then just use coordinates to find + or -
+      let itemXSpeed = (1 - ratio) * arrowSpeed;
+      let itemYSpeed = ratio * arrowSpeed;
+
+      const movingLeft = dragTracker.startCoord.x < dragTracker.cursorPos.x;
+      const movingUp = dragTracker.startCoord.y > dragTracker.cursorPos.y;
+
+
+      if (movingLeft) {
+        itemXSpeed = -itemXSpeed;
+      }
+
+      if (movingUp) {
+        itemYSpeed = -itemYSpeed;
+      }
+
+      gameEntities.push({
+        type: "arrow",
+        x: movingLeft ? player.x - currentLevel.grid.spacing : player.x,
+        y: player.y + (player.height / 4),
+        xAcceleration: 0,
+        yAcceleration: 0,
+        xSpeed: itemXSpeed,
+        ySpeed: -itemYSpeed,
+        xMaxSpeed: 20,
+        yMaxSpeed: 20,
+        xDrag: .01,
+        yGravity: .1,
+        width: currentLevel.grid.spacing,
+        height: currentLevel.grid.spacing / 4,
+        color: "#964B00",
+        terrainCollidingLeft: false,
+        terrainCollidingRight: false,
+        terrainCollidingTop: false,
+        terrainCollidingBottom: false,
+        isCollider: false,
+      });
+      return true;
+    }
+    return false;
+  }
+
   const operateGameLoop = () => {
     if (keysPressed.up) {
       if (playerState.terrainCollidingBottom && playerState.ySpeed > 0) {
@@ -262,55 +302,37 @@ function TheKingsSport() {
       playerState.xAcceleration = playerState.xAccelerationIncrement;
     }
 
-    if (dragTrackerRef.current.fired) {
-      const arrowSpeed = 20;
-
-      const ratio = Math.abs(Math.atan((dragTrackerRef.current.startCoord.y - dragTrackerRef.current.cursorPos.y) / (dragTrackerRef.current.startCoord.x - dragTrackerRef.current.cursorPos.x))) / (Math.PI / 2);
-
-      //use angle to find ratio, then just use coordinates to find + or -
-      let itemXSpeed = (1 - ratio) * arrowSpeed;
-      let itemYSpeed = ratio * arrowSpeed;
-
-      const movingLeft = dragTrackerRef.current.startCoord.x < dragTrackerRef.current.cursorPos.x;
-      const movingUp = dragTrackerRef.current.startCoord.y > dragTrackerRef.current.cursorPos.y;
-
-
-      if (movingLeft) {
-        itemXSpeed = -itemXSpeed;
-      }
-
-      if (movingUp) {
-        itemYSpeed = -itemYSpeed;
-      }
-
-      gameEntities.push({
-        type: "arrow",
-        x: movingLeft ? playerState.x - currentLevel.grid.spacing : playerState.x,
-        y: playerState.y + (playerState.height / 4),
-        xAcceleration: 0,
-        yAcceleration: 0,
-        xSpeed: itemXSpeed,
-        ySpeed: -itemYSpeed,
-        xMaxSpeed: 20,
-        yMaxSpeed: 20,
-        xDrag: .01,
-        yGravity: .1,
-        width: currentLevel.grid.spacing,
-        height: currentLevel.grid.spacing / 4,
-        color: "#964B00",
-        terrainCollidingLeft: false,
-        terrainCollidingRight: false,
-        terrainCollidingTop: false,
-        terrainCollidingBottom: false,
-        isCollider: false,
-      });
-      setDragTracker({});
-    }
-
     enforcePhysics(playerState);
     gameEntities.forEach((gameEntity) => {
       enforcePhysics(gameEntity);
     });
+
+    if (fireArrow(playerState, dragTrackerRef.current)) {
+      connectionContext.connection?.send(
+        [
+          {
+            command: "fireArrow",
+            data: {
+              player: {
+                x: playerState.x,
+                y: playerState.y,
+                width: playerState.width,
+                height: playerState.height,
+              },
+              dragTracker: dragTrackerRef.current
+            },
+          }
+        ]
+      )
+      setDragTracker({});
+    }
+
+    if (otherPlayerArrowFiringQueueRef.current.length > 0) {
+      const queueItem = otherPlayerArrowFiringQueueRef.current.shift();
+      console.log(queueItem);
+      fireArrow(queueItem.player, queueItem.dragTracker)
+      setOtherPlayerArrowFiringQueue([...otherPlayerArrowFiringQueue]);
+    }
 
     connectionContext.connection?.send(
       [
@@ -324,26 +346,11 @@ function TheKingsSport() {
             height: playerState.height,
             color: playerState.color,
           },
-        },
-        {
-          command: "updateState",
-          entity: "entities",
-          data: gameEntities.map((entity) => {
-            return {
-              x: entity.x,
-              y: entity.y,
-              width: entity.width,
-              height: entity.height,
-              color: entity.color,
-              isCollider: entity.isCollider,
-            }
-          })
-        },
+        }
       ]
     )
     setPlayerState({ ...playerState });
     setGameEntities([...gameEntities]);
-
   }
 
 
@@ -463,7 +470,6 @@ function TheKingsSport() {
         <rect fill={otherPlayerState.color} x={otherPlayerState.x} y={otherPlayerState.y} width={otherPlayerState.width} height={otherPlayerState.height} />
         {(dragTracker.dragging && dragTracker.cursorPos && dragTracker.startCoord) && <path d={`M ${dragTracker.startCoord.x} ${dragTracker.startCoord.y} Q ${(dragTracker.startCoord.x + dragTracker.cursorPos.x) / 2} ${((dragTracker.startCoord.y + dragTracker.cursorPos.y) / 2)} ${dragTracker.cursorPos.x} ${dragTracker.cursorPos.y}`} stroke="gray" strokeWidth="1" fill="transparent" />}
         {gameEntities.map((gameEntity) => <rect fill={gameEntity.color} x={gameEntity.x} y={gameEntity.y} width={gameEntity.width} height={gameEntity.height} />)}
-        {otherPlayerEntities.map((gameEntity) => <rect fill={gameEntity.color} x={gameEntity.x} y={gameEntity.y} width={gameEntity.width} height={gameEntity.height} />)}
       </LevelRenderer>
     </Box>
   );
