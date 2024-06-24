@@ -15,8 +15,9 @@ function LevelRenderer(props) {
 
     return (
         <svg width={props.level.width} height={props.level.height}>
-            {props.children}
+            {!props.childrenFirst && props.children}
             {drawLevelShapes()}
+            {props.childrenFirst && props.children}
         </svg>
     );
 }

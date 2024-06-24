@@ -1,23 +1,31 @@
 import { Box } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import './login.css';
-import { useEffect, useState, useContext } from "react";
+import { useRef, useEffect, useState, useContext, useCallback } from "react";
 import { ConnectionContext } from './ConnectionContext.js';
 import testLevel from "./testLevel.json"
 import LevelRenderer from "./levelRenderer.js";
+import lodash from "lodash";
 
 function TheKingsSport() {
   const navigate = useNavigate();
+  const dragTrackerRef = useRef(null);
+  const otherPlayerEntitiesRef = useRef(null);
   const connectionContext = useContext(ConnectionContext);
 
   const handlePeerData = (data) => {
     if (data.command === "updateState") {
       if (data.entity === "player") {
         setOtherPlayerState(data.data);
+      } else if (data.entity === "entities") {
+        setOtherPlayerEntities(data.data);
       }
     }
   }
 
+  const [dragTracker, setDragTracker] = useState({});
+  const [gameEntities, setGameEntities] = useState([]);
+  const [otherPlayerEntities, setOtherPlayerEntities] = useState([]);
   const [currentLevel, setCurrentLevel] = useState(testLevel); //NOSONAR
   const [keysPressed, setKeysPressed] = useState(
     {
@@ -49,6 +57,7 @@ function TheKingsSport() {
     terrainCollidingTop: false,
     terrainCollidingBottom: false,
     lastGrounded: 0,
+    dragAction: "firing",
   });
   const [playerState, setPlayerState] = useState({
     x: currentLevel.grid.spacing * 2,
@@ -71,48 +80,165 @@ function TheKingsSport() {
     terrainCollidingTop: false,
     terrainCollidingBottom: false,
     lastGrounded: 0,
+    dragAction: "firing",
   });
 
-  //currently assuming every shape is a rectangle
-  const determineCollisions = () => {
-    playerState.terrainCollidingBottom = false;
-    playerState.terrainCollidingTop = false;
-    playerState.terrainCollidingLeft = false;
-    playerState.terrainCollidingRight = false;
+  useEffect(() => {
+    dragTrackerRef.current = dragTracker;
+  }, [dragTracker]);
 
-    const newPlayerX = playerState.x + playerState.xSpeed;
-    const newPlayerY = playerState.y + playerState.ySpeed;
+  useEffect(() => {
+    otherPlayerEntitiesRef.current = otherPlayerEntities;
+  }, [otherPlayerEntities]);
+
+  const determineCollision = (points, physicsObject, newX, newY) => {
+    const x = Math.min(points[2].x, points[0].x);
+    const y = Math.min(points[2].y, points[0].y);
+    const width = Math.abs(Math.max(points[2].x, points[0].x) - x);
+    const height = Math.abs(Math.max(points[2].y, points[0].y) - y);
+    if (
+      newX < x + width &&
+      newX + physicsObject.width > x &&
+      newY < y + height &&
+      newY + physicsObject.height > y
+    ) {
+      const leftDiff = Math.abs(physicsObject.x - (x + width));
+      const rightDiff = Math.abs(physicsObject.x + physicsObject.width - x);
+      const topDiff = Math.abs(physicsObject.y - (y + height));
+      const bottomDiff = Math.abs(physicsObject.y + physicsObject.height - y);
+      const closestDiff = Math.min(leftDiff, rightDiff, topDiff, bottomDiff);
+
+      if (leftDiff === closestDiff) {
+        physicsObject.terrainCollidingLeft = x + width;
+      } else if (rightDiff === closestDiff) {
+        physicsObject.terrainCollidingRight = x - physicsObject.width;
+      } else if (topDiff === closestDiff) {
+        physicsObject.terrainCollidingTop = y + height;
+      } else {
+        physicsObject.terrainCollidingBottom = y - physicsObject.height;
+      }
+    }
+  }
+
+  //currently assuming every shape is a rectangle
+  const determineCollisions = (physicsObject) => {
+    physicsObject.terrainCollidingBottom = false;
+    physicsObject.terrainCollidingTop = false;
+    physicsObject.terrainCollidingLeft = false;
+    physicsObject.terrainCollidingRight = false;
+
+    const newX = physicsObject.x + physicsObject.xSpeed;
+    const newY = physicsObject.y + physicsObject.ySpeed;
 
     currentLevel.shapes.forEach((shape) => {
       if (shape.points.length === 4) {
-        const x = Math.min(shape.points[2].x, shape.points[0].x);
-        const y = Math.min(shape.points[2].y, shape.points[0].y);
-        const width = Math.abs(Math.max(shape.points[2].x, shape.points[0].x) - x);
-        const height = Math.abs(Math.max(shape.points[2].y, shape.points[0].y) - y);
-        if (
-          newPlayerX < x + width &&
-          newPlayerX + playerState.width > x &&
-          newPlayerY < y + height &&
-          newPlayerY + playerState.height > y
-        ) {
-          const leftDiff = Math.abs(playerState.x - (x + width));
-          const rightDiff = Math.abs(playerState.x + playerState.width - x);
-          const topDiff = Math.abs(playerState.y - (y + height));
-          const bottomDiff = Math.abs(playerState.y + playerState.height - y);
-          const closestDiff = Math.min(leftDiff, rightDiff, topDiff, bottomDiff);
+        determineCollision(shape.points, physicsObject, newX, newY)
+      }
+    });
 
-          if (leftDiff === closestDiff) {
-            playerState.terrainCollidingLeft = x + width;
-          } else if (rightDiff === closestDiff) {
-            playerState.terrainCollidingRight = x - playerState.width;
-          } else if (topDiff === closestDiff) {
-            playerState.terrainCollidingTop = y + height;
+    gameEntities.forEach((entity) => {
+      if (entity.isCollider && !physicsObject.isCollider) {
+        const points = [
+          { x: entity.x, y: entity.y },
+          { x: entity.x, y: entity.y + entity.height },
+          { x: entity.x + entity.width, y: entity.y + entity.height },
+          { x: entity.x + entity.width, y: entity.y },
+        ];
+        determineCollision(points, physicsObject, newX, newY);
+      }
+    });
+
+    otherPlayerEntitiesRef.current.forEach((entity) => {
+      if (entity.isCollider && !physicsObject.isCollider) {
+        const points = [
+          { x: entity.x, y: entity.y },
+          { x: entity.x, y: entity.y + entity.height },
+          { x: entity.x + entity.width, y: entity.y + entity.height },
+          { x: entity.x + entity.width, y: entity.y },
+        ];
+        determineCollision(points, physicsObject, newX, newY);
+      }
+    });
+  }
+
+  //a physics object must have (assume x and y for all):
+  //speed, max speed, acceleration, the 4 terrain collidings
+  //coordinates, drag and gravity
+  const enforcePhysics = (physicsObject) => {
+    physicsObject.xSpeed = physicsObject.xSpeed + physicsObject.xAcceleration;
+    physicsObject.ySpeed = physicsObject.ySpeed + physicsObject.yAcceleration;
+
+    if (physicsObject.xSpeed > physicsObject.xMaxSpeed) {
+      physicsObject.xSpeed = physicsObject.xMaxSpeed
+    } else if (physicsObject.xSpeed < -physicsObject.xMaxSpeed) {
+      physicsObject.xSpeed = -physicsObject.xMaxSpeed;
+    }
+
+    if (physicsObject.ySpeed > physicsObject.yMaxSpeed) {
+      physicsObject.ySpeed = physicsObject.yMaxSpeed
+    } else if (physicsObject.ySpeed < -physicsObject.yMaxSpeed) {
+      physicsObject.ySpeed = -physicsObject.yMaxSpeed;
+    }
+
+    determineCollisions(physicsObject);
+
+    if (!physicsObject.isCollider) {
+      if (physicsObject.type === "arrow" && (physicsObject.terrainCollidingRight || physicsObject.terrainCollidingLeft)) {
+        if (physicsObject.terrainCollidingRight) {
+          physicsObject.x = physicsObject.terrainCollidingRight;
+        } else {
+          physicsObject.x = physicsObject.terrainCollidingLeft;
+        }
+        physicsObject.isCollider = true;
+      } else {
+        if (physicsObject.xSpeed > 0) {
+          if (physicsObject.terrainCollidingRight === false) {
+            physicsObject.x = physicsObject.x + physicsObject.xSpeed;
           } else {
-            playerState.terrainCollidingBottom = y - playerState.height;
+            physicsObject.xSpeed = 0;
+            physicsObject.x = physicsObject.terrainCollidingRight;
+          }
+        } else {
+          if (physicsObject.terrainCollidingLeft === false) { //NOSONAR
+            physicsObject.x = physicsObject.x + physicsObject.xSpeed;
+          } else {
+            physicsObject.xSpeed = 0;
+            physicsObject.x = physicsObject.terrainCollidingLeft;
+          }
+        }
+
+        if (physicsObject.ySpeed > 0) {
+          if (physicsObject.terrainCollidingBottom === false) {
+            physicsObject.y = physicsObject.y + physicsObject.ySpeed;
+          } else {
+            physicsObject.ySpeed = 0;
+            physicsObject.y = physicsObject.terrainCollidingBottom;
+          }
+        } else {
+          if (physicsObject.terrainCollidingTop === false) { //NOSONAR
+            physicsObject.y = physicsObject.y + physicsObject.ySpeed;
+          } else {
+            physicsObject.ySpeed = 0;
+            physicsObject.y = physicsObject.terrainCollidingTop;
           }
         }
       }
-    });
+    }
+
+
+
+    physicsObject.xAcceleration = 0;
+    physicsObject.yAcceleration = 0;
+
+    if (physicsObject.xSpeed >= physicsObject.xDrag) {
+      physicsObject.xSpeed = physicsObject.xSpeed - physicsObject.xDrag;
+    } else if (physicsObject.xSpeed <= -physicsObject.xDrag) {
+      physicsObject.xSpeed = physicsObject.xSpeed + physicsObject.xDrag;
+    } else {
+      physicsObject.xSpeed = 0;
+    }
+
+    physicsObject.ySpeed = physicsObject.ySpeed + physicsObject.yGravity;
   }
 
   const operateGameLoop = () => {
@@ -134,84 +260,81 @@ function TheKingsSport() {
       playerState.xAcceleration = playerState.xAccelerationIncrement;
     }
 
-    playerState.xSpeed = playerState.xSpeed + playerState.xAcceleration;
-    playerState.ySpeed = playerState.ySpeed + playerState.yAcceleration;
+    if (dragTrackerRef.current.fired) {
+      const arrowSpeed = 20;
 
-    if (playerState.xSpeed > playerState.xMaxSpeed) {
-      playerState.xSpeed = playerState.xMaxSpeed
-    } else if (playerState.xSpeed < -playerState.xMaxSpeed) {
-      playerState.xSpeed = -playerState.xMaxSpeed;
-    }
+      const ratio = Math.abs(Math.atan((dragTrackerRef.current.startCoord.y - dragTrackerRef.current.cursorPos.y) / (dragTrackerRef.current.startCoord.x - dragTrackerRef.current.cursorPos.x))) / (Math.PI / 2);
 
-    if (playerState.ySpeed > playerState.yMaxSpeed) {
-      playerState.ySpeed = playerState.yMaxSpeed
-    } else if (playerState.ySpeed < -playerState.yMaxSpeed) {
-      playerState.ySpeed = -playerState.yMaxSpeed;
-    }
+      //use angle to find ratio, then just use coordinates to find + or -
+      let itemXSpeed = (1 - ratio) * arrowSpeed;
+      let itemYSpeed = ratio * arrowSpeed;
 
-    determineCollisions();
+      const movingLeft = dragTrackerRef.current.startCoord.x < dragTrackerRef.current.cursorPos.x;
+      const movingUp = dragTrackerRef.current.startCoord.y > dragTrackerRef.current.cursorPos.y;
 
-    if (playerState.xSpeed > 0) {
-      if (playerState.terrainCollidingRight === false) {
-        playerState.x = playerState.x + playerState.xSpeed;
-      } else {
-        playerState.x = playerState.terrainCollidingRight;
+
+      if (movingLeft) {
+        itemXSpeed = -itemXSpeed;
       }
-    } else {
-      if (playerState.terrainCollidingLeft === false) { //NOSONAR
-        playerState.x = playerState.x + playerState.xSpeed;
-      } else {
-        playerState.x = playerState.terrainCollidingLeft;
+
+      if (movingUp) {
+        itemYSpeed = -itemYSpeed;
       }
+
+      gameEntities.push({
+        type: "arrow",
+        x: movingLeft ? playerState.x - currentLevel.grid.spacing : playerState.x,
+        y: playerState.y + (playerState.height / 4),
+        xAcceleration: 0,
+        yAcceleration: 0,
+        xSpeed: itemXSpeed,
+        ySpeed: -itemYSpeed,
+        xMaxSpeed: 20,
+        yMaxSpeed: 20,
+        xDrag: .01,
+        yGravity: .1,
+        width: currentLevel.grid.spacing,
+        height: currentLevel.grid.spacing / 4,
+        color: "#964B00",
+        terrainCollidingLeft: false,
+        terrainCollidingRight: false,
+        terrainCollidingTop: false,
+        terrainCollidingBottom: false,
+        isCollider: false,
+      });
+      setDragTracker({});
     }
 
-    if (playerState.ySpeed > 0) {
-      if (playerState.terrainCollidingBottom === false) {
-        playerState.y = playerState.y + playerState.ySpeed;
-      } else {
-        playerState.ySpeed = 0;
-        playerState.y = playerState.terrainCollidingBottom;
-      }
-    } else {
-      if (playerState.terrainCollidingTop === false) { //NOSONAR
-        playerState.y = playerState.y + playerState.ySpeed;
-      } else {
-        playerState.ySpeed = 0;
-        playerState.y = playerState.terrainCollidingTop;
-      }
-    }
+    enforcePhysics(playerState);
+    gameEntities.forEach((gameEntity) => {
+      enforcePhysics(gameEntity);
+    });
 
-
-    playerState.xAcceleration = 0;
-    playerState.yAcceleration = 0;
-
-    if (playerState.xSpeed >= playerState.xDrag) {
-      playerState.xSpeed = playerState.xSpeed - playerState.xDrag;
-    } else if (playerState.xSpeed <= -playerState.xDrag) {
-      playerState.xSpeed = playerState.xSpeed + playerState.xDrag;
-    } else {
-      playerState.xSpeed = 0;
-    }
-
-    playerState.ySpeed = playerState.ySpeed + playerState.yGravity;
-
-    connectionContext.connection.send({
+    connectionContext.connection?.send({
       command: "updateState",
       entity: "player",
       data: playerState
     })
     setPlayerState({ ...playerState });
+
+    connectionContext.connection?.send({
+      command: "updateState",
+      entity: "entities",
+      data: gameEntities
+    })
+    setGameEntities([...gameEntities]);
+
   }
 
 
   useEffect(() => {
-    if (connectionContext.connection === null || Object.keys(connectionContext.connection).length === 0) {
-        navigate("../lobby");
-        return;
+    if (connectionContext.connection === undefined || Object.keys(connectionContext.connection).length === 0) {
+      navigate("../lobby");
+      return;
     }
 
-    connectionContext.connection.on("data", (data) => {
-        handlePeerData(data);
+    connectionContext.connection?.on("data", (data) => {
+      handlePeerData(data);
     });
 
     document.addEventListener('keydown', (event) => {
@@ -279,11 +402,48 @@ function TheKingsSport() {
     return () => clearInterval(gameLoop);
   }, []);
 
+  //speed, max speed, acceleration, the 4 terrain collidings
+  //coordinates, drag and gravity
+
+  const onDragEnd = () => {
+    if (playerState.dragAction === "firing") {
+      dragTracker.fired = true;
+      setDragTracker({ ...dragTracker });
+    }
+  }
+
+  const handleMouseMove = useCallback(lodash.throttle((e) => {
+    setDragTracker((dragTracker) => {
+      dragTracker.cursorPos = { x: e.pageX, y: e.pageY }
+      return dragTracker
+    });
+  }, 16), []);
+
   return (
-    <Box sx={{ backgroundColor: "cornsilk", overflow: "hidden" }}>
-      <LevelRenderer level={currentLevel}>
+    <Box
+      onMouseDown={(e) => {
+        setDragTracker({ dragging: true, startCoord: { x: e.pageX, y: e.pageY } });
+      }}
+
+      onMouseMove={(e) => {
+        if (dragTracker.dragging) {
+          handleMouseMove(e);
+        }
+      }}
+
+      onMouseUp={(e) => {
+        if (dragTracker.dragging) {
+          onDragEnd();
+        }
+      }}
+
+      sx={{ backgroundColor: "cornsilk", overflow: "hidden" }}>
+      <LevelRenderer level={currentLevel} childrenFirst>
         <rect fill={playerState.color} x={playerState.x} y={playerState.y} width={playerState.width} height={playerState.height} />
         <rect fill={otherPlayerState.color} x={otherPlayerState.x} y={otherPlayerState.y} width={otherPlayerState.width} height={otherPlayerState.height} />
+        {(dragTracker.dragging && dragTracker.cursorPos && dragTracker.startCoord) && <path d={`M ${dragTracker.startCoord.x} ${dragTracker.startCoord.y} Q ${(dragTracker.startCoord.x + dragTracker.cursorPos.x) / 2} ${((dragTracker.startCoord.y + dragTracker.cursorPos.y) / 2)} ${dragTracker.cursorPos.x} ${dragTracker.cursorPos.y}`} stroke="gray" strokeWidth="1" fill="transparent" />}
+        {gameEntities.map((gameEntity) => <rect fill={gameEntity.color} x={gameEntity.x} y={gameEntity.y} width={gameEntity.width} height={gameEntity.height} />)}
+        {otherPlayerEntities.map((gameEntity) => <rect fill={gameEntity.color} x={gameEntity.x} y={gameEntity.y} width={gameEntity.width} height={gameEntity.height} />)}
       </LevelRenderer>
     </Box>
   );

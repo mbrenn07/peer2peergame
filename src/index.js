@@ -30,7 +30,7 @@ root.render(
 );
 
 function BaseComponent () {
-  const [connection, setConnection] = useState({});
+  const [connection, setConnection] = useState();
   const connectionObj = useMemo(() => {
     return {connection: connection, setConnection: setConnection}
 }, [connection, setConnection]);
