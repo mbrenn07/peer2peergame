@@ -14,13 +14,15 @@ function TheKingsSport() {
   const connectionContext = useContext(ConnectionContext);
 
   const handlePeerData = (data) => {
-    if (data.command === "updateState") {
-      if (data.entity === "player") {
-        setOtherPlayerState(data.data);
-      } else if (data.entity === "entities") {
-        setOtherPlayerEntities(data.data);
+    data.forEach((dataItem) => {
+      if (dataItem.command === "updateState") {
+        if (dataItem.entity === "player") {
+          setOtherPlayerState(dataItem.data);
+        } else if (dataItem.entity === "entities") {
+          setOtherPlayerEntities(dataItem.data);
+        }
       }
-    }
+    });
   }
 
   const [dragTracker, setDragTracker] = useState({});
@@ -310,18 +312,36 @@ function TheKingsSport() {
       enforcePhysics(gameEntity);
     });
 
-    connectionContext.connection?.send({
-      command: "updateState",
-      entity: "player",
-      data: playerState
-    })
+    connectionContext.connection?.send(
+      [
+        {
+          command: "updateState",
+          entity: "player",
+          data: {
+            x: playerState.x,
+            y: playerState.y,
+            width: playerState.width,
+            height: playerState.height,
+            color: playerState.color,
+          },
+        },
+        {
+          command: "updateState",
+          entity: "entities",
+          data: gameEntities.map((entity) => {
+            return {
+              x: entity.x,
+              y: entity.y,
+              width: entity.width,
+              height: entity.height,
+              color: entity.color,
+              isCollider: entity.isCollider,
+            }
+          })
+        },
+      ]
+    )
     setPlayerState({ ...playerState });
-
-    connectionContext.connection?.send({
-      command: "updateState",
-      entity: "entities",
-      data: gameEntities
-    })
     setGameEntities([...gameEntities]);
 
   }
