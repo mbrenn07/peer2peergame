@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import './login.css';
 import { useRef, useEffect, useState, useContext, useCallback } from "react";
 import { ConnectionContext } from './ConnectionContext.js';
-import testLevel from "./testLevel.json"
+import testLevel from "./testLevel.json";
+import level1 from "./level1.json";
 import LevelRenderer from "./levelRenderer.js";
 import lodash from "lodash";
 
@@ -22,7 +23,7 @@ function TheKingsSport() {
       } else if (dataItem.command === "fireArrow") {
         console.log(dataItem)
         setOtherPlayerArrowFiringQueue((prevQueue) => {
-          prevQueue.push({player: dataItem.data.player, dragTracker: dataItem.data.dragTracker});
+          prevQueue.push({ player: dataItem.data.player, dragTracker: dataItem.data.dragTracker });
           return prevQueue;
         });
       }
@@ -32,7 +33,8 @@ function TheKingsSport() {
   const [dragTracker, setDragTracker] = useState({});
   const [otherPlayerArrowFiringQueue, setOtherPlayerArrowFiringQueue] = useState([])
   const [gameEntities, setGameEntities] = useState([]);
-  const [currentLevel, setCurrentLevel] = useState(testLevel); //NOSONAR
+  const [currentLevel, setCurrentLevel] = useState(level1); //NOSONAR
+  const [currentScroll, setCurrentScroll] = useState([0, currentLevel.height - window.innerHeight]);
   const [keysPressed, setKeysPressed] = useState(
     {
       up: false,
@@ -44,7 +46,7 @@ function TheKingsSport() {
 
   const [otherPlayerState, setOtherPlayerState] = useState({
     x: currentLevel.grid.spacing * 2,
-    y: currentLevel.grid.spacing * 14,
+    y: currentLevel.height - (currentLevel.grid.spacing * 2),
     xAcceleration: 0,
     yAcceleration: 0,
     xAccelerationIncrement: 2,
@@ -67,7 +69,7 @@ function TheKingsSport() {
   });
   const [playerState, setPlayerState] = useState({
     x: currentLevel.grid.spacing * 2,
-    y: currentLevel.grid.spacing * 14,
+    y: currentLevel.height - (currentLevel.grid.spacing * 2),
     xAcceleration: 0,
     yAcceleration: 0,
     xAccelerationIncrement: 2,
@@ -284,6 +286,10 @@ function TheKingsSport() {
   }
 
   const operateGameLoop = () => {
+    currentScroll[1] = currentScroll[1] - (currentLevel.grid.spacing / 200);
+    window.scrollTo(...currentScroll);
+    setCurrentScroll([...currentScroll]);
+
     if (keysPressed.up) {
       if (playerState.terrainCollidingBottom && playerState.ySpeed > 0) {
         playerState.lastGrounded = new Date().getTime();
@@ -360,6 +366,7 @@ function TheKingsSport() {
       return;
     }
 
+
     connectionContext.connection?.on("data", (data) => {
       handlePeerData(data);
     });
@@ -426,7 +433,9 @@ function TheKingsSport() {
       requestAnimationFrame(operateGameLoop);
     }, 16);
 
-    return () => clearInterval(gameLoop);
+    return () => {
+      clearInterval(gameLoop);
+    }
   }, []);
 
   //speed, max speed, acceleration, the 4 terrain collidings

@@ -1,11 +1,13 @@
 import { Box, Stack, Divider, IconButton, TextField, Typography, Modal } from "@mui/material";
 import { GridOn, Delete, BorderStyle, Download, Upload, Crop32, Pentagon, AutoFixNormal, FormatColorFill } from '@mui/icons-material';
 import './login.css';
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import lodash from "lodash";
 import LevelRenderer from "./levelRenderer";
 
 function Game1() {
+    const scrollPositionRef = useRef(null);
+
     const [openDimensionModal, setOpenDimensionModal] = useState(false);
     const [openUploadModal, setOpenUploadModal] = useState(false);
     const [levelWidth, setLevelWidth] = useState();
@@ -29,6 +31,10 @@ function Game1() {
 
         return parseInt(gridLineSpacing) * Math.round(number / parseInt(gridLineSpacing));
     })
+
+    useEffect(() => {
+        scrollPositionRef.current = scrollPosition;
+    }, [scrollPosition]);
 
     useEffect(() => {
         const level = JSON.parse(localStorage.getItem("currentLevel"));
@@ -93,11 +99,7 @@ function Game1() {
     }
 
     const handleMouseMove = useCallback(lodash.throttle((e) => {
-        if (gridSnapping) {
-            setCursorLocation({ x: roundToGrid(e.pageX + scrollPosition.x), y: roundToGrid(e.pageY + scrollPosition.y) });
-        } else {
-            setCursorLocation({ x: e.pageX + scrollPosition.x, y: e.pageY + scrollPosition.y });
-        }
+        setCursorLocation({ x: e.pageX + scrollPositionRef.current.x, y: e.pageY + scrollPositionRef.current.y });
     }, 16), []);
 
     const updateColor = useCallback(lodash.throttle((e) => {
